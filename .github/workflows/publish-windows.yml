@@ -1,0 +1,23 @@
+name: Publish verified Windows 0.1.1
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-windows.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish the verified Windows package while Mac runner is queued
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 43848884931 --name windows-release --dir release-assets
+          if ! gh release view v0.1.1 >/dev/null 2>&1; then
+            gh release create v0.1.1 --target 373253bad65f477c595b1061f5c8924782eccfdd --title '적자생존 0.1.1 — Windows·Mac 시범 버전' --prerelease --notes-file RELEASE_NOTES.md
+          fi
+          gh release upload v0.1.1 release-assets/JeokjaSaengjon-Windows-0.1.1.zip release-assets/native-windows-smoke.png --clobber
