@@ -12,6 +12,6 @@ try{
  await page.getByRole('button',{name:/저장하기/}).click();await page.getByRole('status').filter({hasText:'상담 기록이 저장되었습니다.'}).waitFor();
  const state=await page.evaluate(()=>window.jeokja.call('state'));assert.equal(state.records.length,1);assert.equal(state.records[0].title,'가상 시험 상담');
  assert.ok(fs.existsSync(path.join(dir,'records.jjvault')));assert.ok(!fs.readFileSync(path.join(dir,'records.jjvault'),'utf8').includes('가상 시험 상담'));
- await page.getByRole('navigation').getByRole('button',{name:'기록 조회',exact:true}).click();await page.screenshot({path:'native-windows-smoke.png',fullPage:true});
- console.log('Native Windows app: launch, unlock, virtual roster, record save and encrypted disk storage PASS');
+ await page.getByRole('navigation').getByRole('button',{name:'기록 조회',exact:true}).click();await page.screenshot({path:process.env.JEOKJA_SMOKE_IMAGE||'native-windows-smoke.png',fullPage:true});
+ console.log('Native desktop app: launch, unlock, virtual roster, record save and encrypted disk storage PASS');
 }finally{await app.close();fs.rmSync(dir,{recursive:true,force:true});}
