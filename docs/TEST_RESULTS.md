@@ -53,3 +53,7 @@ Google의 여러 파일을 하나의 원자적 거래로 묶을 수 없으므로
 
 
 공유용 배포에서는 문서 작성자와 프린터 설정 등 비공개 메타데이터를 제거한 파생 서식을 기준으로 보존 검사를 진행합니다. 자세한 사항은 SHARED_TEMPLATE.md를 참고하세요.
+
+
+## 0.1.1 GitHub 네이티브 실행 확인
+2026-11-16, Windows 및 macOS 15 ARM64 GitHub 실행 환경에서 빌드, 자동 테스트 21개, 패키징된 앱 실행·보관함 생성·가상 명단 등록·상담 저장·암호화 파일 확인을 통과했습니다. Mac은 Apple codesign --verify --deep --strict 검사를 통과했습니다. 실행 화면은 Release의 native-windows-smoke.png와 native-mac-smoke.png로 확인할 수 있습니다. 학교 PC, 실제 Google 전송 및 나이스 업로드 확인은 별도로 필요합니다.

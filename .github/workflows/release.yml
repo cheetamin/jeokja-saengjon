@@ -2,7 +2,7 @@ name: Build desktop release
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/release.yml', 'tools/native-smoke.mjs']
+    paths: ['src/**', 'desktop/**', 'assets/**', 'tools/**', 'package.json', 'package-lock.json']
   workflow_dispatch:
 permissions:
   contents: read
@@ -84,4 +84,6 @@ jobs:
           if ! gh release view v0.1.1 >/dev/null 2>&1; then
             gh release create v0.1.1 --target "$GITHUB_SHA" --title '적자생존 0.1.1 — Windows·Mac 시범 버전' --prerelease --notes-file RELEASE_NOTES.md
           fi
-          gh release upload v0.1.1 artifacts/JeokjaSaengjon-Windows-0.1.1.zip artifacts/JeokjaSaengjon-Mac-M1-0.1.1.zip artifacts/native-windows-smoke.png artifacts/native-mac-smoke.png --clobber
+          mapfile -d '' files < <(find artifacts -type f \( -name 'JeokjaSaengjon-*.zip' -o -name 'native-*-smoke.png' \) -print0)
+          test "${#files[@]}" -eq 4
+          gh release upload v0.1.1 "${files[@]}" --clobber

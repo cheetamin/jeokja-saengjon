@@ -1,4 +1,4 @@
-name: Publish verified Windows 0.1.1
+name: Publish verified desktop 0.1.1
 on:
   push:
     branches: [main]
@@ -12,12 +12,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Publish the verified Windows package while Mac runner is queued
+      - name: Publish verified Windows and Mac packages
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 43848884931 --name windows-release --dir release-assets
+          gh run download 43848884931 --name windows-release --dir release-assets/windows
+          gh run download 43848884931 --name mac-release --dir release-assets/mac
           if ! gh release view v0.1.1 >/dev/null 2>&1; then
             gh release create v0.1.1 --target 373253bad65f477c595b1061f5c8924782eccfdd --title '적자생존 0.1.1 — Windows·Mac 시범 버전' --prerelease --notes-file RELEASE_NOTES.md
           fi
-          gh release upload v0.1.1 release-assets/JeokjaSaengjon-Windows-0.1.1.zip release-assets/native-windows-smoke.png --clobber
+          mapfile -d '' files < <(find release-assets -type f \( -name 'JeokjaSaengjon-*.zip' -o -name 'native-*-smoke.png' \) -print0)
+          test "${#files[@]}" -eq 4
+          gh release upload v0.1.1 "${files[@]}" --clobber
