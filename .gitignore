@@ -1,0 +1,13 @@
+node_modules/
+dist/
+release/
+*.log
+*.jjvault
+*.jjvault.*
+*.previous
+.env*
+*client_secret*.json
+*credentials*.json
+*token*.json
+.DS_Store
+test-data/

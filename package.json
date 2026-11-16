@@ -1,0 +1,66 @@
+{
+  "name": "jeokja-saengjon",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "main": "desktop/main.cjs",
+  "description": "Private teacher counseling notebook",
+  "author": "Jeokja",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "start": "electron .",
+    "test": "node --test tests/*.test.mjs",
+    "pack:win": "electron-builder --win zip --x64",
+    "pack:mac": "electron-builder --mac --arm64 --x64 --dir"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.1",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/user-event": "^14.6.11",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "@vitejs/plugin-react": "5.1.1",
+    "electron": "^45.3.2",
+    "electron-builder": "26.0.12",
+    "jsdom": "^31.0.1",
+    "typescript": "5.9.3",
+    "vite": "7.2.2"
+  },
+  "build": {
+    "appId": "kr.jeokja.counsel",
+    "productName": "JeokjaSaengjon",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "desktop/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": false,
+      "target": "zip",
+      "executableName": "JeokjaSaengjon"
+    },
+    "artifactName": "JeokjaSaengjon-Windows-${version}.${ext}",
+    "mac": {
+      "icon": "assets/icon.icns",
+      "target": "zip",
+      "category": "public.app-category.productivity",
+      "identity": null,
+      "extendInfo": {
+        "CFBundleDisplayName": "적자생존",
+        "CFBundleName": "JeokjaSaengjon"
+      }
+    }
+  }
+}

@@ -1,0 +1,80 @@
+name: Build desktop release
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - run: npx electron-builder --win --x64 --dir
+      - name: Run packaged Windows app with virtual data
+        shell: pwsh
+        run: |
+          $env:JEOKJA_EXECUTABLE = Join-Path (Get-Location) 'release/win-unpacked/JeokjaSaengjon.exe'
+          node tools/native-smoke.mjs
+      - run: python tools/package_windows.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: |
+            release/JeokjaSaengjon-Windows-0.1.1.zip
+            native-windows-smoke.png
+  mac:
+    runs-on: macos-14
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - name: Build Apple Silicon app with native ad-hoc signing
+        run: npx electron-builder --mac --arm64 --dir --config.mac.identity=- --config.mac.entitlements=build/entitlements.mac.plist --config.mac.entitlementsInherit=build/entitlements.mac.plist
+      - name: Verify native macOS signature and paths
+        run: |
+          codesign --verify --deep --strict --verbose=2 release/mac-arm64/JeokjaSaengjon.app
+          python3 docs/check_mac_paths.py release/mac-arm64/JeokjaSaengjon.app
+      - name: Package app
+        run: |
+          cp docs/MAC-011-CHANGELOG.txt release/mac-arm64/START-HERE.txt
+          cd release/mac-arm64
+          ditto -c -k --sequesterRsrc --keepParent JeokjaSaengjon.app ../JeokjaSaengjon-Mac-M1-0.1.1.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-release
+          path: release/JeokjaSaengjon-Mac-M1-0.1.1.zip
+  publish:
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Publish v0.1.1 prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view v0.1.1 >/dev/null 2>&1; then
+            gh release create v0.1.1 --target "$GITHUB_SHA" --title '적자생존 0.1.1 — Windows·Mac 시범 버전' --prerelease --notes-file RELEASE_NOTES.md
+          fi
+          gh release upload v0.1.1 artifacts/JeokjaSaengjon-Windows-0.1.1.zip artifacts/JeokjaSaengjon-Mac-M1-0.1.1.zip artifacts/native-windows-smoke.png --clobber
