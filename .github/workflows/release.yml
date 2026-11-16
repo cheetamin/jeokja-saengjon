@@ -2,7 +2,7 @@ name: Build desktop release
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/release.yml']
+    paths: ['.github/workflows/release.yml', 'tools/native-smoke.mjs']
   workflow_dispatch:
 permissions:
   contents: read

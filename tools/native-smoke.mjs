@@ -7,7 +7,7 @@ try{
  await page.getByLabel('보관함 비밀번호',{exact:true}).fill('virtual-test-password-123');await page.getByLabel('비밀번호 확인',{exact:true}).fill('virtual-test-password-123');
  await page.getByRole('button',{name:'보관함 만들기',exact:true}).click();await page.getByRole('button',{name:'설정',exact:true}).click();
  await page.getByRole('button',{name:'가상 학생 3명 등록',exact:true}).click();await page.getByText('3명 재학',{exact:true}).waitFor();
- await page.getByRole('button',{name:'기록하기',exact:true}).click();await page.getByLabel('학생 *',{exact:true}).selectOption({label:'1번 가상하늘'});
+ await page.getByRole('button',{name:'기록하기',exact:true}).click();await page.getByLabel('학생 *').selectOption({label:'1번 가상하늘'});
  await page.getByLabel('상담 제목 *',{exact:true}).fill('가상 시험 상담');await page.getByLabel('상담 내용 *',{exact:true}).fill('실기기 자동 시험을 위한 가상 상담 내용입니다.');
  await page.getByRole('button',{name:/저장하기/}).click();await page.getByRole('status').filter({hasText:'상담 기록이 저장되었습니다.'}).waitFor();
  const state=await page.evaluate(()=>window.jeokja.call('state'));assert.equal(state.records.length,1);assert.equal(state.records[0].title,'가상 시험 상담');
