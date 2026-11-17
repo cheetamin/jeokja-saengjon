@@ -1,6 +1,6 @@
 from pathlib import Path
 import zipfile,shutil,json
-root=Path('.');out=Path('release/JeokjaSaengjon-Windows-'+json.loads(Path('package.json').read_text())['version']+'.zip');app=Path('release/win-unpacked')
+root=Path('.');out=Path('release/JeokjaSaengjon-Windows-'+json.loads(Path('package.json').read_text(encoding='utf-8'))['version']+'.zip');app=Path('release/win-unpacked')
 assert (app/'JeokjaSaengjon.exe').exists()
 shutil.copy('assets/icon.ico',app/'icon.ico')
 with zipfile.ZipFile(out,'w',zipfile.ZIP_DEFLATED,compresslevel=3) as z:
