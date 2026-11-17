@@ -21,7 +21,11 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
-      - run: npx electron-builder --win nsis --x64 --publish never
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrEmpty($env:CSC_LINK)) { Remove-Item Env:CSC_LINK -ErrorAction SilentlyContinue; Remove-Item Env:CSC_KEY_PASSWORD -ErrorAction SilentlyContinue }
+          npx electron-builder --win nsis --x64 --publish never
       - name: Run packaged Windows app with virtual data
         shell: pwsh
         run: |
@@ -67,7 +71,7 @@ jobs:
           npx electron-builder --mac dmg zip --arm64 --publish never --config.mac.notarize=true --config.mac.entitlements=build/entitlements.mac.plist --config.mac.entitlementsInherit=build/entitlements.mac.plist
       - name: Build Apple Silicon preview without Developer ID
         if: env.CSC_LINK == ''
-        run: npx electron-builder --mac --arm64 --dir --config.mac.identity=- --config.mac.entitlements=build/entitlements.mac.plist --config.mac.entitlementsInherit=build/entitlements.mac.plist
+        run: env -u CSC_LINK -u CSC_KEY_PASSWORD npx electron-builder --mac --arm64 --dir --config.mac.identity=- --config.mac.entitlements=build/entitlements.mac.plist --config.mac.entitlementsInherit=build/entitlements.mac.plist
       - name: Apply native ad-hoc signature with Electron entitlements
         if: env.CSC_LINK == ''
         run: codesign --force --deep --options runtime --entitlements build/entitlements.mac.plist --sign - release/mac-arm64/JeokjaSaengjon.app
