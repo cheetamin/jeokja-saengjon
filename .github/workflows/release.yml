@@ -9,6 +9,9 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    env:
+      CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -18,12 +21,16 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
-      - run: npx electron-builder --win --x64 --dir
+      - run: npx electron-builder --win nsis --x64 --publish never
       - name: Run packaged Windows app with virtual data
         shell: pwsh
         run: |
           $env:JEOKJA_EXECUTABLE = Join-Path (Get-Location) 'release/win-unpacked/JeokjaSaengjon.exe'
           node tools/native-smoke.mjs
+      - name: Build private next-version test fixture
+        run: node tools/build-update-fixture.mjs
+      - name: Test installed Windows update and data preservation
+        run: node tools/native-update-smoke.mjs
       - run: python tools/package_windows.py
       - uses: actions/upload-artifact@v4
         with:
@@ -31,11 +38,19 @@ jobs:
           path: |
             release/JeokjaSaengjon-Windows-*.zip
             native-windows-smoke.png
+            native-windows-update-smoke.png
+            release/JeokjaSaengjon-Setup-*.exe
+            release/JeokjaSaengjon-Setup-*.blockmap
+            release/latest.yml
             assets/student-roster-template.xlsx
   mac:
     runs-on: macos-15
     env:
-      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -45,9 +60,16 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm test
-      - name: Build Apple Silicon app with native ad-hoc signing
+      - name: Build signed Mac app when a Developer ID certificate is configured
+        if: env.CSC_LINK != ''
+        run: |
+          node -e "require('fs').writeFileSync('assets/update-policy.json', JSON.stringify({macSigned:true}))"
+          npx electron-builder --mac dmg zip --arm64 --publish never --config.mac.notarize=true --config.mac.entitlements=build/entitlements.mac.plist --config.mac.entitlementsInherit=build/entitlements.mac.plist
+      - name: Build Apple Silicon preview without Developer ID
+        if: env.CSC_LINK == ''
         run: npx electron-builder --mac --arm64 --dir --config.mac.identity=- --config.mac.entitlements=build/entitlements.mac.plist --config.mac.entitlementsInherit=build/entitlements.mac.plist
       - name: Apply native ad-hoc signature with Electron entitlements
+        if: env.CSC_LINK == ''
         run: codesign --force --deep --options runtime --entitlements build/entitlements.mac.plist --sign - release/mac-arm64/JeokjaSaengjon.app
       - name: Verify native macOS signature and paths
         run: |
@@ -57,6 +79,7 @@ jobs:
         run: |
           JEOKJA_EXECUTABLE="$PWD/release/mac-arm64/JeokjaSaengjon.app/Contents/MacOS/JeokjaSaengjon" JEOKJA_SMOKE_IMAGE=native-mac-smoke.png node tools/native-smoke.mjs
       - name: Package app
+        if: env.CSC_LINK == ''
         run: |
           cp docs/MAC-011-CHANGELOG.txt release/mac-arm64/START-HERE.txt
           cd release/mac-arm64
@@ -66,7 +89,8 @@ jobs:
         with:
           name: mac-release
           path: |
-            release/JeokjaSaengjon-Mac-M1-*.zip
+            release/JeokjaSaengjon-Mac-M1-*
+            release/latest-mac.yml
             native-mac-smoke.png
   publish:
     needs: [windows, mac]
@@ -88,6 +112,7 @@ jobs:
           if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" --target "$GITHUB_SHA" --title "적자생존 $version — Windows·Mac 시범 버전" --prerelease --notes-file RELEASE_NOTES.md
           fi
-          mapfile -d '' files < <(find artifacts -type f \( -name 'JeokjaSaengjon-*.zip' -o -name 'native-*-smoke.png' -o -name 'student-roster-template.xlsx' \) -print0)
-          test "${#files[@]}" -eq 5
+          mapfile -d '' files < <(find artifacts -type f \( -name 'JeokjaSaengjon-*.zip' -o -name 'native-*-smoke.png' -o -name 'student-roster-template.xlsx' -o -name 'JeokjaSaengjon-Setup-*.exe' -o -name '*.blockmap' -o -name 'latest*.yml' -o -name 'JeokjaSaengjon-Mac-M1-*.dmg' \) -print0)
+          test "${#files[@]}" -ge 9
+          test -f artifacts/release/latest.yml
           gh release upload "$tag" "${files[@]}" --clobber

@@ -1,6 +1,6 @@
 {
   "name": "jeokja-saengjon",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "type": "module",
   "main": "desktop/main.cjs",
@@ -15,6 +15,7 @@
     "pack:mac": "electron-builder --mac --arm64 --x64 --dir"
   },
   "dependencies": {
+    "electron-updater": "^6.8.11",
     "fflate": "^0.8.3",
     "react": "19.2.0",
     "react-dom": "19.2.0",
@@ -47,20 +48,38 @@
     ],
     "win": {
       "icon": "assets/icon.ico",
-      "signAndEditExecutable": false,
-      "target": "zip",
-      "executableName": "JeokjaSaengjon"
+      "target": [
+        "nsis"
+      ],
+      "executableName": "JeokjaSaengjon",
+      "artifactName": "JeokjaSaengjon-Setup-${version}.${ext}"
     },
     "artifactName": "JeokjaSaengjon-Windows-${version}.${ext}",
     "mac": {
       "icon": "assets/icon.icns",
       "target": "zip",
       "category": "public.app-category.productivity",
-      "identity": null,
       "extendInfo": {
         "CFBundleDisplayName": "적자생존",
         "CFBundleName": "JeokjaSaengjon"
+      },
+      "artifactName": "JeokjaSaengjon-Mac-M1-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "cheetamin",
+        "repo": "jeokja-saengjon",
+        "releaseType": "prerelease"
       }
+    ],
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "runAfterFinish": false,
+      "createDesktopShortcut": "always",
+      "shortcutName": "적자생존",
+      "deleteAppDataOnUninstall": false
     }
   }
 }

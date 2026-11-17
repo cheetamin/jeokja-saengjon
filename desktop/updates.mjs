@@ -1,0 +1,25 @@
+import {EventEmitter} from 'node:events';
+export const RELEASES='https://github.com/cheetamin/jeokja-saengjon/releases';
+const api='https://api.github.com/repos/cheetamin/jeokja-saengjon/releases?per_page=20';
+const parse=v=>/^\d+\.\d+\.\d+$/.test(String(v))?String(v).split('.').map(Number):null;
+export function newer(a,b){const x=parse(a),y=parse(b);if(!x||!y)return false;for(let i=0;i<3;i++){if(x[i]!==y[i])return x[i]>y[i]}return false}
+export function updateMode({packaged,platform,installed,macSigned}){if(!packaged)return {mode:'manual',reason:'개발 실행에서는 설치 파일로 업데이트하세요.'};if(platform==='win32')return installed?{mode:'automatic',reason:''}:{mode:'manual',reason:'자동 업데이트를 시작하려면 Windows 설치 파일(Setup.exe)을 한 번 설치하세요.'};if(platform==='darwin')return macSigned&&installed?{mode:'automatic',reason:''}:{mode:'manual',reason:macSigned?'Mac 자동 업데이트를 사용하려면 앱을 응용 프로그램 폴더에 설치하세요.':'현재 Mac 빌드는 정식 개발자 서명이 없어 자동 교체를 사용할 수 없습니다. 새 버전을 내려받아 설치하세요.'};return {mode:'manual',reason:'이 운영체제에서는 수동 설치를 사용하세요.'}}
+export class Updates extends EventEmitter{
+  constructor({version,mode,reason='',native=null,fetcher=fetch,platform=process.platform,arch=process.arch,onChange=()=>{}}){super();this.native=native;this.fetcher=fetcher;this.platform=platform;this.arch=arch;this.onChange=onChange;this.active=false;this.asset=null;this.state={currentVersion:version,mode,reason,phase:'idle',availableVersion:'',progress:0,message:'업데이트 확인을 누르면 새 버전을 확인합니다.',releaseUrl:RELEASES};
+    if(native){native.autoDownload=false;native.autoInstallOnAppQuit=false;native.allowDowngrade=false;native.allowPrerelease=true;native.logger=null;
+      native.on('checking-for-update',()=>this.set({phase:'checking',message:'새 버전을 확인하고 있습니다.'}));
+      native.on('update-available',info=>{if(!newer(info.version,this.state.currentVersion)){this.set({phase:'latest',availableVersion:'',message:'설치 가능한 새 버전이 없습니다.'});return;}this.set({phase:'available',availableVersion:info.version,progress:0,message:'새 버전을 내려받을 수 있습니다.'})});
+      native.on('update-not-available',()=>this.set({phase:'latest',availableVersion:'',message:'최신 버전입니다.'}));
+      native.on('download-progress',p=>this.set({phase:'downloading',progress:Math.max(0,Math.min(100,Number(p.percent)||0)),message:'업데이트를 내려받고 있습니다. 상담 기록은 계속 저장할 수 있습니다.'}));
+      native.on('update-downloaded',info=>this.set({phase:'ready',availableVersion:info.version,progress:100,message:'다운로드와 파일 검증이 완료됐습니다. 재시작하여 적용하세요.'}));
+      native.on('error',()=>this.fail());
+    }
+  }
+  get(){return {...this.state}}
+  set(p){Object.assign(this.state,p);this.onChange(this.get());return this.get()}
+  fail(){return this.set({phase:'error',message:'업데이트에 실패했습니다. 인터넷 연결과 설치 권한을 확인하고 다시 시도하세요. 기존 프로그램과 자료는 유지됩니다.'})}
+  async check(){if(this.active||this.state.phase==='ready')return this.get();this.active=true;this.asset=null;this.set({phase:'checking',progress:0,message:'새 버전을 확인하고 있습니다.'});try{if(this.state.mode==='automatic'){await this.native.checkForUpdates()}else{const res=await this.fetcher(api,{headers:{Accept:'application/vnd.github+json'},signal:AbortSignal.timeout(15000)});if(!res.ok)throw Error('fetch');const releases=await res.json();if(!Array.isArray(releases))throw Error('format');const candidates=releases.filter(r=>!r.draft&&parse(String(r.tag_name||'').replace(/^v/,''))).sort((a,b)=>newer(a.tag_name.replace(/^v/,''),b.tag_name.replace(/^v/,''))?-1:1);const r=candidates[0],v=String(r?.tag_name||'').replace(/^v/,'');if(r&&newer(v,this.state.currentVersion)){const name=this.platform==='win32'?`JeokjaSaengjon-Setup-${v}.exe`:`JeokjaSaengjon-Mac-${this.arch==='arm64'?'M1':'Intel'}-${v}.zip`;const asset=r.assets?.find(a=>a.name===name);const url=asset?.browser_download_url;this.asset=typeof url==='string'&&url.startsWith(RELEASES+'/download/v'+v+'/')?url:null;this.set({phase:'available',availableVersion:v,message:'새 버전이 있습니다. 이 설치 방식에서는 내려받은 설치 파일을 직접 실행하세요.'});}else this.set({phase:'latest',availableVersion:'',message:'최신 버전입니다.'})}return this.get()}catch{return this.fail()}finally{this.active=false}}
+  async download(){if(this.state.mode!=='automatic')throw Error('이 설치 방식에서는 설치 파일 다운로드를 이용하세요.');if(this.active||!['available','error'].includes(this.state.phase)||!this.state.availableVersion)throw Error('먼저 업데이트를 확인하세요.');this.active=true;this.set({phase:'downloading',progress:0,message:'업데이트 다운로드를 시작합니다.'});try{await this.native.downloadUpdate();return this.get()}catch{return this.fail()}finally{this.active=false}}
+  async install(prepare){if(this.active||this.state.mode!=='automatic'||this.state.phase!=='ready')throw Error('업데이트 다운로드와 검증이 먼저 완료되어야 합니다.');this.active=true;try{if(!await prepare())return this.get();this.set({phase:'installing',message:'저장과 암호화 백업을 마쳤습니다. 업데이트를 적용합니다.'});this.native.quitAndInstall(true,true);return this.get()}catch{this.set({phase:'ready',message:'저장·백업 또는 설치 준비에 실패했습니다. 자료를 확인한 뒤 다시 시도하세요.'});throw Error('업데이트 적용을 시작하지 못했습니다. 기존 자료를 유지합니다.')}finally{this.active=false}}
+  manualUrl(){return this.asset||RELEASES}
+}
