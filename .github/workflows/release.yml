@@ -29,7 +29,7 @@ jobs:
         with:
           name: windows-release
           path: |
-            release/JeokjaSaengjon-Windows-0.1.1.zip
+            release/JeokjaSaengjon-Windows-*.zip
             native-windows-smoke.png
   mac:
     runs-on: macos-15
@@ -59,12 +59,13 @@ jobs:
         run: |
           cp docs/MAC-011-CHANGELOG.txt release/mac-arm64/START-HERE.txt
           cd release/mac-arm64
-          ditto -c -k --sequesterRsrc --keepParent JeokjaSaengjon.app ../JeokjaSaengjon-Mac-M1-0.1.1.zip
+          version=$(node -p "require('../../package.json').version")
+          ditto -c -k --sequesterRsrc --keepParent JeokjaSaengjon.app "../JeokjaSaengjon-Mac-M1-$version.zip"
       - uses: actions/upload-artifact@v4
         with:
           name: mac-release
           path: |
-            release/JeokjaSaengjon-Mac-M1-0.1.1.zip
+            release/JeokjaSaengjon-Mac-M1-*.zip
             native-mac-smoke.png
   publish:
     needs: [windows, mac]
@@ -77,13 +78,15 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
-      - name: Publish v0.1.1 prerelease
+      - name: Publish versioned prerelease
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! gh release view v0.1.1 >/dev/null 2>&1; then
-            gh release create v0.1.1 --target "$GITHUB_SHA" --title '적자생존 0.1.1 — Windows·Mac 시범 버전' --prerelease --notes-file RELEASE_NOTES.md
+          version=$(node -p "require('./package.json').version")
+          tag="v$version"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --target "$GITHUB_SHA" --title "적자생존 $version — Windows·Mac 시범 버전" --prerelease --notes-file RELEASE_NOTES.md
           fi
           mapfile -d '' files < <(find artifacts -type f \( -name 'JeokjaSaengjon-*.zip' -o -name 'native-*-smoke.png' \) -print0)
           test "${#files[@]}" -eq 4
-          gh release upload v0.1.1 "${files[@]}" --clobber
+          gh release upload "$tag" "${files[@]}" --clobber
