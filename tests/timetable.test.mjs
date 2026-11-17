@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {periods,defaultTimetable,completeTimetable}from'../desktop/timetable.mjs';
+import {duration}from'../desktop/domain.mjs';
+test('ordered periods include each break and lunch with valid independent times',()=>{assert.deepEqual(periods.slice(1,-1),['1교시','1교시 쉬는 시간','2교시','2교시 쉬는 시간','3교시','3교시 쉬는 시간','4교시','4교시 쉬는 시간','5교시','점심 시간','6교시','방과후']);const t=defaultTimetable();assert.equal(duration(...t['1교시 쉬는 시간']),10);assert.equal(duration(...t['점심 시간']),50);for(const p of periods.filter(x=>x!=='직접 입력'))assert.ok(duration(...t[p])>0)});
+test('timetable upgrade preserves custom lessons, breaks and legacy aliases',()=>{const old={'1교시':['09:10','09:50'],'1교시 쉬는 시간':['09:50','10:05'],'점심시간':['12:00','13:00'],'방과 후':['15:00','16:00']},copy=structuredClone(old),t=completeTimetable(old);assert.deepEqual(t['1교시'],old['1교시']);assert.deepEqual(t['1교시 쉬는 시간'],old['1교시 쉬는 시간']);assert.deepEqual(t['점심 시간'],old['점심시간']);assert.deepEqual(t['방과후'],old['방과 후']);assert.deepEqual(old,copy);assert.ok(t['4교시 쉬는 시간']);});

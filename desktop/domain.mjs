@@ -1,7 +1,9 @@
 import {randomUUID} from 'node:crypto';
 import fs from 'node:fs';
+import {defaultTimetable} from './timetable.mjs';
+export {completeTimetable} from './timetable.mjs';
 export const reference=JSON.parse(fs.readFileSync(new URL('../assets/reference.json',import.meta.url),'utf8'));
-export function initialState(){return {version:2,settings:{year:2026,grade:4,classroom:4,teacher:'',fontSize:15,afterSave:'clear',pseudonym:'code',terms:'',retentionYears:5,approved:false,googleAccountType:'workspace',allowedEmail:'',timetable:{'1교시':['09:00','09:40'],'2교시':['09:50','10:30'],'3교시':['10:40','11:20'],'4교시':['11:30','12:10'],'5교시':['13:00','13:40'],'6교시':['13:50','14:30']}},students:[],records:[],draft:null,google:{files:{},tokens:null,client:null,email:''}}}
+export function initialState(){return {version:2,settings:{year:2026,grade:4,classroom:4,teacher:'',fontSize:15,afterSave:'clear',pseudonym:'code',terms:'',retentionYears:5,approved:false,googleAccountType:'workspace',allowedEmail:'',timetable:defaultTimetable()},students:[],records:[],draft:null,google:{files:{},tokens:null,client:null,email:''}}}
 export function duration(start,end){if(!/^\d{2}:\d{2}$/.test(start)||!/^\d{2}:\d{2}$/.test(end))throw Error('시작·종료 시각을 입력하세요.');let m=t=>{let [h,m]=t.split(':').map(Number);if(h>23||m>59)throw Error('시각이 올바르지 않습니다.');return h*60+m};let n=m(end)-m(start);if(n<0)throw Error('종료 시각은 시작 시각 이후여야 합니다.');return n}
 export function participants(r){return r.participants||[r.student]}
 export function participantIds(r){return r.studentIds||[r.studentId]}
