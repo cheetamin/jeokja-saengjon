@@ -42,6 +42,7 @@ jobs:
           path: |
             release/JeokjaSaengjon-Windows-*.zip
             native-windows-smoke.png
+            native-google-guide-windows-smoke.png
             native-windows-update-smoke.png
             release/JeokjaSaengjon-Setup-*.exe
             release/JeokjaSaengjon-Setup-*.blockmap
@@ -96,6 +97,7 @@ jobs:
             release/JeokjaSaengjon-Mac-M1-*
             release/latest-mac.yml
             native-mac-smoke.png
+            native-google-guide-mac-smoke.png
   publish:
     needs: [windows, mac]
     runs-on: ubuntu-latest

@@ -9,7 +9,36 @@ export function validateGoogleProfile(profile,email,accountType='workspace'){
  else if(accountType==='workspace'){if(!profile.hd)throw Error('학교 Workspace 계정이 아닙니다. 개인 Gmail은 설정에서 개인 Gmail 모드를 선택하세요.');}
  else throw Error('Google 계정 종류를 다시 선택하세요.');
 }
-export async function authorize(client,email,open,accountType='workspace'){if(!client?.client_id?.endsWith('.apps.googleusercontent.com'))throw Error('Google 데스크톱 OAuth JSON 파일을 등록하세요.');let verifier=randomBytes(48).toString('base64url'),state=randomBytes(32).toString('hex');let server=http.createServer();await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve)});let redirect=`http://127.0.0.1:${server.address().port}/callback`;try{let codePromise=new Promise((resolve,reject)=>{let timer=setTimeout(()=>reject(Error('로그인 시간이 초과되었습니다. 다시 연결하세요.')),180000);server.on('request',(req,res)=>{let u=new URL(req.url,redirect);if(u.pathname!=='/callback'||u.searchParams.get('state')!==state){res.writeHead(400);res.end('Invalid request');return;}clearTimeout(timer);res.setHeader('Content-Type','text/plain; charset=utf-8');res.end('적자생존 앱으로 돌아가세요.');u.searchParams.has('code')?resolve(u.searchParams.get('code')):reject(Error('로그인이 취소되었습니다.'));});});let query=new URLSearchParams({client_id:client.client_id,redirect_uri:redirect,response_type:'code',scope:scopes,state,code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256',access_type:'offline',prompt:'consent',login_hint:email});await open('https://accounts.google.com/o/oauth2/v2/auth?'+query);let code=await codePromise;let tokens=await jsonFetch('https://oauth2.googleapis.com/token',{method:'POST',body:new URLSearchParams({client_id:client.client_id,client_secret:client.client_secret||'',redirect_uri:redirect,grant_type:'authorization_code',code,code_verifier:verifier})});let profile=await jsonFetch('https://openidconnect.googleapis.com/v1/userinfo',{headers:{Authorization:'Bearer '+tokens.access_token}});try{validateGoogleProfile(profile,email,accountType)}catch(error){await fetch('https://oauth2.googleapis.com/revoke',{method:'POST',body:new URLSearchParams({token:tokens.access_token}),signal:AbortSignal.timeout(15000)}).catch(()=>{});throw error;}return {tokens:{...tokens,expires:Date.now()+tokens.expires_in*1000},email:profile.email};}finally{server.close();}}
+export async function authorize(client,email,open,accountType='workspace',signal){
+ if(!client?.client_id?.endsWith('.apps.googleusercontent.com'))throw Error('Google 데스크톱 OAuth JSON 파일을 등록하세요.');
+ const cancelled=()=>Error('Google 로그인을 취소했습니다. 다시 연결할 수 있습니다.');
+ if(signal?.aborted)throw cancelled();
+ const verifier=randomBytes(48).toString('base64url'),state=randomBytes(32).toString('hex'),server=http.createServer();
+ await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve)});
+ const redirect=`http://127.0.0.1:${server.address().port}/callback`;
+ let timer,abort,tokens,accepted=false,finished=false;
+ try{
+  const codePromise=new Promise((resolve,reject)=>{
+   const finish=(error,code)=>{if(finished)return;finished=true;clearTimeout(timer);error?reject(error):resolve(code)};
+   abort=()=>finish(cancelled());
+   timer=setTimeout(()=>finish(Error('로그인 시간이 초과되었습니다. Google 연결을 다시 눌러 주세요.')),180000);
+   signal?.addEventListener('abort',abort,{once:true});
+   server.on('request',(req,res)=>{const u=new URL(req.url,redirect);if(u.pathname!=='/callback'||u.searchParams.get('state')!==state){res.writeHead(400);res.end('Invalid request');return}res.setHeader('Content-Type','text/plain; charset=utf-8');res.end('적자생존 앱으로 돌아가세요.');if(finished)return;u.searchParams.has('code')?finish(null,u.searchParams.get('code')):finish(Error('Google 로그인이 취소되었거나 권한이 허용되지 않았습니다. 연결 도우미의 해결 방법을 확인하세요.'));});
+  });
+  // The browser launch may fail before the callback promise is awaited.
+  codePromise.catch(()=>{});
+  if(signal?.aborted){abort();throw cancelled()}
+  const query=new URLSearchParams({client_id:client.client_id,redirect_uri:redirect,response_type:'code',scope:scopes,state,code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'S256',access_type:'offline',prompt:'consent',login_hint:email});
+  await open('https://accounts.google.com/o/oauth2/v2/auth?'+query);
+  const code=await codePromise;
+  tokens=await jsonFetch('https://oauth2.googleapis.com/token',{signal,method:'POST',body:new URLSearchParams({client_id:client.client_id,client_secret:client.client_secret||'',redirect_uri:redirect,grant_type:'authorization_code',code,code_verifier:verifier})});
+  const profile=await jsonFetch('https://openidconnect.googleapis.com/v1/userinfo',{signal,headers:{Authorization:'Bearer '+tokens.access_token}});
+  if(signal?.aborted)throw cancelled();
+  validateGoogleProfile(profile,email,accountType);accepted=true;
+  return {tokens:{...tokens,expires:Date.now()+tokens.expires_in*1000},email:profile.email};
+ }catch(error){if(signal?.aborted)throw cancelled();throw error}
+ finally{clearTimeout(timer);if(abort)signal?.removeEventListener('abort',abort);server.closeAllConnections?.();server.close();if(tokens&&!accepted)await fetch('https://oauth2.googleapis.com/revoke',{method:'POST',body:new URLSearchParams({token:tokens.access_token}),signal:AbortSignal.timeout(3000)}).catch(()=>{});}
+}
 export class GoogleAPI{
  constructor(s,persist,signal){this.s=s;this.persist=persist;this.signal=signal}
  async request(url,body,method){let g=this.s.google;if(!g.tokens)throw Error('Google 계정을 연결하세요.');if(g.tokens.expires<Date.now()+60000){let t=await jsonFetch('https://oauth2.googleapis.com/token',{method:'POST',body:new URLSearchParams({client_id:g.client.client_id,client_secret:g.client.client_secret||'',refresh_token:g.tokens.refresh_token,grant_type:'refresh_token'})});g.tokens={...g.tokens,...t,expires:Date.now()+t.expires_in*1000};this.persist();}return jsonFetch(url,{signal:this.signal,method:method||(body?'POST':'GET'),headers:{Authorization:'Bearer '+g.tokens.access_token,'Content-Type':'application/json'},...(body?{body:JSON.stringify(body)}:{})})}

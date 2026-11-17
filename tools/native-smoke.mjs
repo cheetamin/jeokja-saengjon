@@ -13,5 +13,6 @@ try{
  const state=await page.evaluate(()=>window.jeokja.call('state'));assert.equal(state.records.length,1);assert.equal(state.records[0].title,'가상 시험 상담');
  assert.ok(fs.existsSync(path.join(dir,'records.jjvault')));assert.ok(!fs.readFileSync(path.join(dir,'records.jjvault'),'utf8').includes('가상 시험 상담'));
  await page.getByRole('navigation').getByRole('button',{name:'기록 조회',exact:true}).click();await page.screenshot({path:process.env.JEOKJA_SMOKE_IMAGE||'native-windows-smoke.png',fullPage:true});
+ await page.getByRole('button',{name:'설정',exact:true}).click();await page.getByRole('button',{name:'Google 연결 시작 · 쉬운 안내',exact:true}).click();await page.locator('.google-connection').screenshot({path:process.platform==='darwin'?'native-google-guide-mac-smoke.png':'native-google-guide-windows-smoke.png'});
  console.log('Native desktop app: launch, unlock, virtual roster, record save and encrypted disk storage PASS');
 }finally{await app.close();fs.rmSync(dir,{recursive:true,force:true});}

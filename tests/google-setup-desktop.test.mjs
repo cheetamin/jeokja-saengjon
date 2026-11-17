@@ -1,0 +1,11 @@
+import test from'node:test';import assert from'node:assert/strict';import fs from'node:fs';import os from'node:os';import path from'node:path';import {harness}from'./desktop-harness.mjs';
+test('desktop onboarding validates JSON, preserves configuration on cancel, and cancels waiting login without restart',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'jj-google-guide-'));const h=await harness(dir),c=h.call;
+ try{let s=await c('unlock','virtual-test-password-123');await c('googleHelp',{page:'clients',projectId:'teacher-demo-123'});assert.equal(new URL(h.files.external[0]).hostname,'console.cloud.google.com');await assert.rejects(c('googleHelp',{page:'https://evil.test'}));assert.equal(h.files.external.length,1);
+ await c('settings',{...s.settings,allowedEmail:'virtual.teacher@gmail.com',googleAccountType:'personal',approved:true});assert.equal((await c('oauthConfig')).oauthImported,false);
+ h.files.open=path.join(dir,'test-client.json');fs.writeFileSync(h.files.open,JSON.stringify({web:{client_id:'FAKE.apps.googleusercontent.com',client_secret:'FAKE'}}));await assert.rejects(c('oauthConfig'),/데스크톱 앱/);
+ fs.writeFileSync(h.files.open,JSON.stringify({installed:{client_id:'FAKE.apps.googleusercontent.com',client_secret:'FAKE-TEST-ONLY'}}));let imported=await c('oauthConfig');assert.equal(imported.oauthImported,true);assert.equal(imported.google.configured,true);assert.equal(imported.google.client,undefined);h.files.open=null;assert.equal((await c('oauthConfig')).oauthImported,false);assert.equal((await c('state')).google.configured,true);
+ for(let attempt=0;attempt<2;attempt++){const pending=c('connect');const rejected=assert.rejects(pending,/취소/);for(let i=0;i<100;i++){if((await c('state')).google.authenticating)break;await new Promise(r=>setTimeout(r,10));}assert.equal((await c('state')).google.authenticating,true);await assert.rejects(c('settings',{allowedEmail:'different@gmail.com'}),/취소/);await c('cancelGoogleLogin');await rejected;assert.equal((await c('state')).google.authenticating,false);assert.equal((await c('state')).google.connected,false);assert.equal((await c('state')).google.configured,true);}
+ await c('lock');
+ }finally{fs.rmSync(dir,{recursive:true,force:true})}
+});
