@@ -10,13 +10,13 @@ const server=http.createServer((req,res)=>{let name;try{name=decodeURIComponent(
 let app;
 const timeout=(promise,ms)=>{let timer;return Promise.race([promise,new Promise((_,reject)=>timer=setTimeout(()=>reject(Error('update timeout')),ms))]).finally(()=>clearTimeout(timer))};
 try{
- app=await electron.launch({executablePath:exe,env,timeout:60000});let page=await app.firstWindow();
+ app=await electron.launch({executablePath:exe,env,timeout:60000});app.process().stdout?.on('data',b=>process.stdout.write(b));app.process().stderr?.on('data',b=>process.stderr.write(b));let page=await app.firstWindow();
  await page.getByLabel('보관함 비밀번호',{exact:true}).fill('virtual-update-password-123');await page.getByLabel('비밀번호 확인',{exact:true}).fill('virtual-update-password-123');await page.getByRole('button',{name:'보관함 만들기',exact:true}).click();await page.getByRole('button',{name:'설정',exact:true}).click();await page.getByRole('button',{name:'가상 학생 3명 등록',exact:true}).click();await page.getByText('3명 재학',{exact:true}).waitFor();
  await page.getByRole('button',{name:'기록하기',exact:true}).click();await page.getByLabel('학생 *').selectOption({label:'1번 가상하늘'});await page.getByLabel('상담 제목 *',{exact:true}).fill('업데이트 보존 가상 기록');await page.getByLabel('상담 내용 *',{exact:true}).fill('업데이트 후에도 유지되어야 하는 가상 내용');await page.getByRole('button',{name:/저장하기/}).click();await page.getByRole('status').filter({hasText:'상담 기록이 저장되었습니다.'}).waitFor();await page.getByLabel('상담 내용 *',{exact:true}).fill('업데이트 전 작성 중인 가상 초안');
  await page.getByRole('button',{name:'설정',exact:true}).click();
  assert.equal((await page.evaluate(()=>window.jeokja.call('updateStatus'))).mode,'automatic');
  // Test-only privileged main-process evaluation; no alternate feed exposed by production IPC.
- await app.evaluate(({app},url)=>{const req=require('node:module').createRequire(require('node:path').join(app.getAppPath(),'package.json'));const u=req('electron-updater').autoUpdater;u.setFeedURL({provider:'generic',url});u.disableDifferentialDownload=true;require('electron').dialog.showMessageBox=async()=>({response:1});},`http://127.0.0.1:${server.address().port}/`);
+ await app.evaluate(({app,dialog},url)=>{const req=process.getBuiltinModule('node:module').createRequire(process.getBuiltinModule('node:path').join(app.getAppPath(),'package.json'));const u=req('electron-updater').autoUpdater;u.setFeedURL({provider:'generic',url});u.disableDifferentialDownload=true;u.logger=console;dialog.showMessageBox=async()=>({response:1});},`http://127.0.0.1:${server.address().port}/`);
  await page.getByRole('button',{name:'업데이트 확인',exact:true}).click();await page.getByText('새 버전을 내려받을 수 있습니다.',{exact:true}).waitFor({timeout:30000});await page.getByRole('button',{name:'업데이트 다운로드',exact:true}).click();await page.getByText('다운로드와 파일 검증이 완료됐습니다. 재시작하여 적용하세요.',{exact:true}).waitFor({timeout:120000});
  const closed=new Promise(r=>app.process().once('exit',r));await page.getByRole('button',{name:'재시작하여 적용',exact:true}).click();await timeout(closed,60000);app=null;
  // Wait for actual NSIS replacement and automatic relaunch, then attach a fresh test session.

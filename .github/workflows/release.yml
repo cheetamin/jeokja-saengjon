@@ -111,12 +111,30 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          head=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq '.object.sha')
+          if [ "$head" != "$GITHUB_SHA" ]; then
+            echo "A newer main commit exists; skip publishing this intermediate build."
+            exit 0
+          fi
           version=$(node -p "require('./package.json').version")
           tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            existing=$(gh release view "$tag" --json targetCommitish --jq '.targetCommitish')
+            if [ "$existing" != "$GITHUB_SHA" ]; then
+              echo "This version already belongs to another commit. Increment package.json version."
+              exit 1
+            fi
+            draft=$(gh release view "$tag" --json isDraft --jq '.isDraft')
+            if [ "$draft" = "false" ]; then
+              echo "This exact build is already published; keep its assets immutable."
+              exit 0
+            fi
+          fi
           if ! gh release view "$tag" >/dev/null 2>&1; then
-            gh release create "$tag" --target "$GITHUB_SHA" --title "적자생존 $version — Windows·Mac 시범 버전" --prerelease --notes-file RELEASE_NOTES.md
+            gh release create "$tag" --target "$GITHUB_SHA" --title "적자생존 $version — Windows·Mac 시범 버전" --draft --prerelease --notes-file RELEASE_NOTES.md
           fi
           mapfile -d '' files < <(find artifacts -type f \( -name 'JeokjaSaengjon-*.zip' -o -name 'native-*-smoke.png' -o -name 'student-roster-template.xlsx' -o -name 'JeokjaSaengjon-Setup-*.exe' -o -name '*.blockmap' -o -name 'latest*.yml' -o -name 'JeokjaSaengjon-Mac-M1-*.dmg' \) -print0)
           test "${#files[@]}" -ge 9
           test -f artifacts/release/latest.yml
           gh release upload "$tag" "${files[@]}" --clobber
+          gh release edit "$tag" --draft=false --prerelease
