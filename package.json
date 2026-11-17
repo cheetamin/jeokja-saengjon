@@ -79,7 +79,8 @@
       "runAfterFinish": false,
       "createDesktopShortcut": "always",
       "shortcutName": "적자생존",
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh"
     }
   }
 }
