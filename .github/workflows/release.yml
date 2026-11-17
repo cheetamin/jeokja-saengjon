@@ -31,6 +31,7 @@ jobs:
           path: |
             release/JeokjaSaengjon-Windows-*.zip
             native-windows-smoke.png
+            assets/student-roster-template.xlsx
   mac:
     runs-on: macos-15
     env:
@@ -87,6 +88,6 @@ jobs:
           if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" --target "$GITHUB_SHA" --title "적자생존 $version — Windows·Mac 시범 버전" --prerelease --notes-file RELEASE_NOTES.md
           fi
-          mapfile -d '' files < <(find artifacts -type f \( -name 'JeokjaSaengjon-*.zip' -o -name 'native-*-smoke.png' \) -print0)
-          test "${#files[@]}" -eq 4
+          mapfile -d '' files < <(find artifacts -type f \( -name 'JeokjaSaengjon-*.zip' -o -name 'native-*-smoke.png' -o -name 'student-roster-template.xlsx' \) -print0)
+          test "${#files[@]}" -eq 5
           gh release upload "$tag" "${files[@]}" --clobber
