@@ -1,4 +1,4 @@
-const {app,BrowserWindow,ipcMain,dialog,shell,screen,Menu}=require('electron');const path=require('node:path');const fs=require('node:fs');
+const {app,BrowserWindow,ipcMain,dialog,clipboard,shell,screen,Menu}=require('electron');const path=require('node:path');const fs=require('node:fs');
 let win,vault,updates,cloud,cloudWindow,installingUpdate=false,state=null,busy=false,authBusy=false,authAbort=null,queue=Promise.resolve(),lastActivity=Date.now(),syncAbort=null,epoch=0,resync=false;
 if(process.env.JEOKJA_DATA_DIR)app.setPath('userData',process.env.JEOKJA_DATA_DIR);else app.setPath('userData',path.join(app.getPath('appData'),'JeokjaSaengjon'));
 if(!app.requestSingleInstanceLock())app.quit();
@@ -14,6 +14,7 @@ function dispatchSync(){if(state&&cloud?.key)setTimeout(()=>cloud.sync(),0);if(b
 function cancelSync(){authAbort?.abort();epoch++;syncAbort?.abort();resync=false;}
 async function handle(action,arg){lastActivity=Date.now();if(action==='status')return {exists:fs.existsSync(vault.file),unlocked:!!state,reference:d.reference};if(action==='unlock'){try{state=vault.unlock(arg);d.validateState(state);state.settings.timetable=d.completeTimetable(state.settings.timetable);state.version=2;persist();dispatchSync();const cloudPassword=state.cloud?.password;if(cloudPassword)setTimeout(()=>{if(state?.cloud?.password===cloudPassword)void cloud.connect(cloudPassword).catch(()=>{})},0);return snapshot()}catch(e){state=null;vault.lock();throw e}}if(action==='updateStatus')return updates.get();if(action==='checkUpdate')return updates.check();if(action==='downloadUpdate')return updates.download();if(action==='updateWebsite'){await shell.openExternal(updates.manualUrl());return true}if(installingUpdate)throw Error('업데이트를 적용 중입니다.');if(!state)throw Error('보관함 잠금을 먼저 해제하세요.');
 if(action==='cloudStatus')return cloud.status();
+if(action==='copyWebAddress'){clipboard.writeText(CLOUD_URL);return true}
 if(action==='cloudOpen'){await cloudWindow.open();return cloud.status()}
 if(action==='cloudConnect'){await cloud.connect(arg.password);if(cloud.key)transact(()=>{state.cloud={...state.cloud,password:arg.password}});return cloud.status()}
 if(action==='cloudSync'){void cloud.sync();return cloud.status()}
