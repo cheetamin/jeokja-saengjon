@@ -1,0 +1,19 @@
+// Browser/Node shared encryption. Passwords, OAuth tokens and drafts never enter the relay.
+const enc=new TextEncoder(),dec=new TextDecoder();
+export const CLOUD_URL='https://jeokja-counsel-web-20261118.workspace-889499.chatgpt.site';
+const aad=enc.encode('jeokja-cloud-v1');
+export const b64=bytes=>{let s='';for(const n of bytes)s+=String.fromCharCode(n);return btoa(s)};
+export const unb64=s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
+export function validEnvelope(e){return e?.format===1&&e.iterations===310000&&typeof e.salt==='string'&&/^[A-Za-z0-9+/]{22}==$/.test(e.salt)&&typeof e.iv==='string'&&/^[A-Za-z0-9+/]{16}$/.test(e.iv)&&typeof e.data==='string'&&e.data.length>=24&&e.data.length<=2800000&&/^[A-Za-z0-9+/]+={0,2}$/.test(e.data)}
+export async function keyFor(password,salt){if(typeof password!=='string'||password.length<12)throw Error('웹 보관함 비밀번호를 12자 이상 입력하세요.');const raw=await crypto.subtle.importKey('raw',enc.encode(password),'PBKDF2',false,['deriveKey']);return crypto.subtle.deriveKey({name:'PBKDF2',salt:unb64(salt),iterations:310000,hash:'SHA-256'},raw,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])}
+export function newSalt(){return b64(crypto.getRandomValues(new Uint8Array(16)))}
+export async function seal(value,key,salt){const iv=crypto.getRandomValues(new Uint8Array(12));const data=await crypto.subtle.encrypt({name:'AES-GCM',iv,additionalData:aad},key,enc.encode(JSON.stringify(value)));return {format:1,iterations:310000,salt,iv:b64(iv),data:b64(new Uint8Array(data))}}
+export async function unseal(e,key){if(!validEnvelope(e))throw Error('웹 보관함 암호화 형식을 확인하세요.');try{return JSON.parse(dec.decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(e.iv),additionalData:aad},key,unb64(e.data))))}catch{throw Error('웹 보관함 비밀번호가 다르거나 자료가 손상되었습니다. 원본은 유지됩니다.')}}
+const keys=['year','grade','classroom','teacher','pseudonym','terms','retentionYears','timetable'];
+export function documentOf(s){return {schema:1,students:structuredClone(s.students),records:s.records.map(r=>{const v=structuredClone(r);delete v.sync;return v}),settings:Object.fromEntries(keys.map(k=>[k,structuredClone(s.settings[k])]))}}
+export const emptyDocument=()=>({schema:1,students:[],records:[],settings:{}});
+export function applyDocument(s,doc){if(doc?.schema!==1||!Array.isArray(doc.students)||!Array.isArray(doc.records)||!doc.settings)throw Error('웹 자료 구조가 올바르지 않습니다.');s.students=structuredClone(doc.students);s.records=doc.records.map(r=>({...structuredClone(r),sync:s.records.find(x=>x.id===r.id&&x.revision===r.revision)?.sync||{}}));for(const k of keys)if(doc.settings[k]!==undefined)s.settings[k]=structuredClone(doc.settings[k]);}
+const stable=x=>JSON.stringify(x,(_,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.entries(v).sort(([a],[b])=>a.localeCompare(b))):v);
+export const same=(a,b)=>stable(a)===stable(b);
+// Deletions use record tombstones. No last-write-wins: concurrent changes require a choice.
+export function mergeDocuments(base,local,remote){const conflicts=[],out={schema:1,students:[],records:[],settings:{}};for(const group of ['students','records']){const b=new Map(base[group].map(x=>[x.id,x])),l=new Map(local[group].map(x=>[x.id,x])),r=new Map(remote[group].map(x=>[x.id,x]));for(const id of new Set([...b.keys(),...l.keys(),...r.keys()])){const before=b.get(id),left=l.get(id),right=r.get(id);let value;if(same(left,right)||same(right,before))value=left;else if(same(left,before))value=right;else{conflicts.push({group,id,local:left,remote:right});value=left;}if(value)out[group].push(structuredClone(value));}}for(const k of keys){const b=base.settings[k],l=local.settings[k],r=remote.settings[k];if(same(l,r)||same(r,b))out.settings[k]=l;else if(same(l,b))out.settings[k]=r;else{conflicts.push({group:'settings',id:k,local:l,remote:r});out.settings[k]=l;}}return {document:out,conflicts}}
